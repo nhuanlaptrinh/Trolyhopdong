@@ -2,7 +2,6 @@ import streamlit as st
 import requests
 import uuid
 import re
-
 # Hàm đọc nội dung từ file văn bản
 def rfile(name_file):
     try:
@@ -14,6 +13,15 @@ def rfile(name_file):
 # Constants
 BEARER_TOKEN = st.secrets.get("BEARER_TOKEN")
 WEBHOOK_URL = st.secrets.get("WEBHOOK_URL")
+
+
+# # Khởi tạo tin nhắn "system" và "assistant"
+# INITIAL_SYSTEM_MESSAGE = {"role": "system", "content": rfile("01.system_trainning.txt")}
+# INITIAL_ASSISTANT_MESSAGE = {"role": "assistant", "content": rfile("02.assistant.txt")}
+
+# if "messages" not in st.session_state:
+#     st.session_state.messages = [INITIAL_SYSTEM_MESSAGE, INITIAL_ASSISTANT_MESSAGE]
+
 
 def generate_session_id():
     return str(uuid.uuid4())
@@ -29,39 +37,40 @@ def send_message_to_llm(session_id, message):
     }
     try:
         response = requests.post(WEBHOOK_URL, json=payload, headers=headers)
+        print("Request payload:", payload)  # In ra payload gửi đi
         response.raise_for_status()
         response_data = response.json()
-        try:
-            content = response_data.get("content") or response_data.get("output")
-            image_url = response_data.get('url', None)
-            return content, image_url  # Return both content and image URL
-        except:
-            content = response_data[0].get("content") or response_data[0].get("output")
-            image_url = response_data[0].get('url', None)
-            return content, image_url  # Return both content and image URL
+        print("Full response:", response_data)  # In ra toàn bộ dữ liệu trả về
+        
+        # Trích xuất contract và urlWord
+        contract = response_data.get('contract', "No contract received")
+        urlWord = response_data.get('urlWord', "No URL received")
+        
+        # Trả về object theo định dạng N8nOutputItems
+        return [{"json": {"contract": contract, "urlWord": urlWord}}]
+    
     except requests.exceptions.RequestException as e:
-        return f"Error: Failed to connect to the LLM - {str(e)}", None
+        return [{"json": {"contract": f"Error: Failed to connect to the LLM - {str(e)}", "urlWord": ""}}]
 
-def extract_text(output):
-    """Trích xuất văn bản từ chuỗi output (loại bỏ hình ảnh)"""
-    # Loại bỏ tất cả các phần chứa hình ảnh
-    text_only = re.sub(r'!\[.*?\]\(.*?\)', '', output)
-    return text_only
-
-def display_message_with_image(text, image_url):
-    """Hiển thị tin nhắn với văn bản và hình ảnh"""
-    if image_url:
+def display_output(output):
+    """Hiển thị nội dung hợp đồng và URL file Word"""
+    # Lấy contract và urlWord từ output
+    contract = output.get('json', {}).get('contract', "No contract received")
+    urlWord = output.get('json', {}).get('urlWord',"No file recceived")
+    print("urlWorld: ",urlWord)
+    # Hiển thị nội dung hợp đồng
+    st.markdown(contract, unsafe_allow_html=True)
+    
+    # Hiển thị URL file Word nếu có
+    if urlWord and urlWord != "No URL received":
         st.markdown(
             f"""
-            <a href="{image_url}" target="_blank">
-                <img src="{image_url}" alt="Biểu đồ" style="width: 100%; height: auto; margin-bottom: 10px;">
+            <a href="{urlWord}" target="_blank" style="color: blue; text-decoration: underline;">
+                Xem file hợp đồng (Word)
             </a>
             """,
             unsafe_allow_html=True
         )
-    
-    # Hiển thị văn bản
-    st.markdown(text, unsafe_allow_html=True)
 
 def main():
     st.set_page_config(page_title="Trợ lý AI", page_icon="🤖", layout="centered")
@@ -72,21 +81,18 @@ def main():
                 padding: 10px;
                 border-radius: 10px;
                 max-width: 75%;
-                background: none;
+                background: none; /* Màu trong suốt */
                 text-align: left;
-                margin-bottom: 10px;
             }
             .user {
                 padding: 10px;
                 border-radius: 10px;
                 max-width: 75%;
-                background: none;
+                background: none; /* Màu trong suốt */
                 text-align: right;
                 margin-left: auto;
-                margin-bottom: 10px;
             }
             .assistant::before { content: "🤖 "; font-weight: bold; }
-            .user::before { content: " "; font-weight: bold; }
         </style>
         """,
         unsafe_allow_html=True
@@ -120,65 +126,30 @@ def main():
 
     # Hiển thị lịch sử tin nhắn
     for message in st.session_state.messages:
-        if message["role"] == "assistant":
-            st.markdown(f'<div class="assistant">{message["content"]}</div>', unsafe_allow_html=True)
-            # Hiển thị hình ảnh nếu có
-            if "image_url" in message and message["image_url"]:
-                st.markdown(
-                    f"""
-                    <a href="{message['image_url']}" target="_blank">
-                        <img src="{message['image_url']}" alt="Biểu đồ" style="width: 100%; height: auto; margin-bottom: 10px;">
-                    </a>
-                    """,
-                    unsafe_allow_html=True
-                )
-        elif message["role"] == "user":
+        if message["role"] == "user":
             st.markdown(f'<div class="user">{message["content"]}</div>', unsafe_allow_html=True)
+        elif message["role"] == "assistant":
+            display_output(message["content"])
 
     # Ô nhập liệu cho người dùng
     if prompt := st.chat_input("Nhập nội dung cần trao đổi ở đây nhé?"):
-        # Thêm tin nhắn người dùng vào lịch sử
+        # Lưu tin nhắn của user vào session state
         st.session_state.messages.append({"role": "user", "content": prompt})
         
-        # Hiển thị tin nhắn người dùng ngay lập tức
+        # Hiển thị tin nhắn user vừa gửi
         st.markdown(f'<div class="user">{prompt}</div>', unsafe_allow_html=True)
-        
+
         # Gửi yêu cầu đến LLM và nhận phản hồi
         with st.spinner("Đang chờ phản hồi từ AI..."):
-            llm_response, image_url = send_message_to_llm(st.session_state.session_id, prompt)
-    
-        # Kiểm tra nếu phản hồi không phải lỗi
-        if isinstance(llm_response, str) and "Error" in llm_response:
-            st.error(llm_response)
-            # Thêm tin nhắn lỗi vào lịch sử
-            st.session_state.messages.append({
-                "role": "assistant", 
-                "content": llm_response,
-                "image_url": None
-            })
-        else:
-            # Hiển thị phản hồi từ AI
-            st.markdown(f'<div class="assistant">{llm_response}</div>', unsafe_allow_html=True)
-            
-            # Hiển thị hình ảnh nếu có
-            if image_url:
-                st.markdown(
-                    f"""
-                    <a href="{image_url}" target="_blank">
-                        <img src="{image_url}" alt="Biểu đồ" style="width: 100%; height: auto; margin-bottom: 10px;">
-                    </a>
-                    """,
-                    unsafe_allow_html=True
-                )
-            
-            # Thêm phản hồi AI vào lịch sử
-            st.session_state.messages.append({
-                "role": "assistant", 
-                "content": llm_response,
-                "image_url": image_url
-            })
+            llm_response = send_message_to_llm(st.session_state.session_id, prompt)
+
+        # Lưu phản hồi của AI vào session state
+        st.session_state.messages.append({"role": "assistant", "content": llm_response[0]})
         
-        # Rerun để cập nhật giao diện
+        # Hiển thị phản hồi của AI
+        display_output(llm_response[0])
+
+        # R ۞ Rerun để cập nhật giao diện
         st.rerun()
 
 if __name__ == "__main__":
