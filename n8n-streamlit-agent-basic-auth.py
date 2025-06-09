@@ -43,8 +43,8 @@ def send_message_to_llm(session_id, message):
         print("Full response:", response_data)  # In ra toàn bộ dữ liệu trả về
         
         # Trích xuất contract và urlWord
-        contract = response_data.get('contract', "No contract received")
-        urlWord = response_data.get('urlWord', "No URL received")
+        contract = response_data[0].get('contract', "No contract received")
+        urlWord = response_data[0].get('urlWord', "No URL received")
         
         # Trả về object theo định dạng N8nOutputItems
         return [{"json": {"contract": contract, "urlWord": urlWord}}]
