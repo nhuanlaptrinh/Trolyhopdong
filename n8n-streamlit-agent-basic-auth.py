@@ -2,26 +2,18 @@ import streamlit as st
 import requests
 import uuid
 import re
+
 # Hàm đọc nội dung từ file văn bản
 def rfile(name_file):
     try:
         with open(name_file, "r", encoding="utf-8") as file:
             return file.read()
     except FileNotFoundError:
-            st.error(f"File {name_file} không tồn tại.")
+        st.error(f"File {name_file} không tồn tại.")
 
 # Constants
-BEARER_TOKEN = st.secrets.get("BEARER_TOKEN")
-WEBHOOK_URL = st.secrets.get("WEBHOOK_URL")
-
-
-# # Khởi tạo tin nhắn "system" và "assistant"
-# INITIAL_SYSTEM_MESSAGE = {"role": "system", "content": rfile("01.system_trainning.txt")}
-# INITIAL_ASSISTANT_MESSAGE = {"role": "assistant", "content": rfile("02.assistant.txt")}
-
-# if "messages" not in st.session_state:
-#     st.session_state.messages = [INITIAL_SYSTEM_MESSAGE, INITIAL_ASSISTANT_MESSAGE]
-
+BEARER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NTk2M2UzMy1kNGQ0LTQ5NjgtYjBkNi0wODQ3YjZiZGNmYTYiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzQ5MTQwNTQ0LCJleHAiOjE3NTE2NjY0MDB9.2P4u1uJa4qe6Hk2fpt23hUqfz1r5KSUlcgiZ4xapXiY"
+WEBHOOK_URL = "https://n8n.srv819221.hstgr.cloud/webhook/463769d0-6109-45f3-9f88-78909c8486d9"
 
 def generate_session_id():
     return str(uuid.uuid4())
@@ -56,8 +48,8 @@ def display_output(output):
     """Hiển thị nội dung hợp đồng và URL file Word"""
     # Lấy contract và urlWord từ output
     contract = output.get('json', {}).get('contract', "No contract received")
-    urlWord = output.get('json', {}).get('url',"No file recceived")
-    print("urlWorld: ",urlWord)
+    urlWord = output.get('json', {}).get('url', "No file received")
+    print("urlWord: ", urlWord)
     # Hiển thị nội dung hợp đồng
     st.markdown(contract, unsafe_allow_html=True)
     
@@ -74,6 +66,20 @@ def display_output(output):
 
 def main():
     st.set_page_config(page_title="Trợ lý AI", page_icon="🤖", layout="centered")
+
+    # Thêm HTML để ghi đè và làm trống meta tags Open Graph
+    st.markdown(
+        """
+        <head>
+            <meta property="og:title" content="">
+            <meta property="og:description" content="">
+            <meta property="og:image" content="">
+            <meta name="description" content="">
+        </head>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.markdown(
         """
         <style>
@@ -149,7 +155,7 @@ def main():
         # Hiển thị phản hồi của AI
         display_output(llm_response[0])
 
-        # R ۞ Rerun để cập nhật giao diện
+        # Rerun để cập nhật giao diện
         st.rerun()
 
 if __name__ == "__main__":
